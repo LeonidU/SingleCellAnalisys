@@ -12,7 +12,6 @@ library(celldex)
 library(biomaRt)
 library(dplyr)
 
-library(Seurat)
 z<-ReadMtx(mtx="matrix.mtx", features="features.tsv", cells="barcodes.tsv",feature.column=1)
 seurat_object <- CreateSeuratObject(counts = z, project = "HumanLiver")
 seurat_object <- NormalizeData(seurat_object, normalization.method = "LogNormalize", scale.factor = 10000)
@@ -26,42 +25,55 @@ seurat_object <- FindNeighbors(seurat_object, dims = 1:10)
 seurat_object <- FindClusters(seurat_object, resolution = 0.5)
 all.markers <- FindAllMarkers(seurat_object)
 
-# Load your Seurat object (replace with your actual file)
-# load("your_seurat_object.RData")
-# Alternatively, if saved as an RDS file
-# your_seurat_object <- readRDS("your_seurat_object.rds")
-
-# Use biomaRt to map genes
 # Connect to Ensembl BioMart
-pig_mart <- useEnsembl("ensembl", dataset = "sscrofa_gene_ensembl")
-human_mart <- useEnsembl("ensembl", dataset = "hsapiens_gene_ensembl")
+ensembl <- useEnsembl(biomart = "genes")
 
-# Get mapping between pig and human genes
-gene_mapping <- getLDS(attributes = c("ensembl_gene_id", "external_gene_name"),
-                       filters = "ensembl_gene_id",
-                       values = rownames(seurat_object),
-                       mart = pig_mart,
-                       attributesL = c("ensembl_gene_id", "external_gene_name"),
-                       martL = human_mart,
-                       uniqueRows = TRUE)
+# List available datasets (optional)
+# listDatasets(ensembl)
+
+# Set datasets for pig and human
+ensembl_pig <- useEnsembl(biomart = "genes", dataset = "sscrofa_gene_ensembl")
+ensembl_human <- useEnsembl(biomart = "genes", dataset = "hsapiens_gene_ensembl")
+
+# Get pig genes from your Seurat object
+pig_genes <- rownames(seurat_object)
+
+# Retrieve pig genes with their human orthologs
+# Note: We can retrieve homologs directly using the pig dataset
+
+gene_mapping <- getHomologs(pig_genes, species_from="pig", species_to="homo_sapiens")
+
+
+#gene_mapping <- getBM(
+#  attributes = c("ensembl_gene_id", "external_gene_name",
+#                 "hsapiens_homolog_ensembl_gene", "hsapiens_homolog_associated_gene_name"),
+#  filters = "external_gene_name",
+#  values = pig_genes,
+#  mart = ensembl_pig
+#)
 
 # Rename columns for clarity
-colnames(gene_mapping) <- c("pig_ensembl_gene_id", "pig_gene_name",
-                            "human_ensembl_gene_id", "human_gene_name")
+colnames(gene_mapping) <- c("pig_ensembl_gene_id",
+                            "human_ensembl_gene_id")
 
-# Remove duplicate mappings
+# Remove entries without human orthologs
+gene_mapping <- gene_mapping[gene_mapping$human_gene_name != "", ]
+
+# Remove duplicate mappings based on pig gene names
 gene_mapping <- gene_mapping[!duplicated(gene_mapping$pig_gene_name), ]
+
 
 # Subset Seurat object to genes that have human orthologs
 common_genes <- intersect(rownames(seurat_object), gene_mapping$pig_gene_name)
 seurat_object <- subset(seurat_object, features = common_genes)
 
-# Update gene names to human orthologs
-# Create a named vector for mapping
+# Create a named vector for mapping pig gene names to human gene names
 gene_map <- setNames(gene_mapping$human_gene_name, gene_mapping$pig_gene_name)
+
 # Rename genes in Seurat object
-rownames(seurat_object@assays$RNA@counts) <- gene_map[rownames(seurat_object@assays$RNA@counts)]
-rownames(seurat_object@assays$RNA@data) <- gene_map[rownames(seurat_object@assays$RNA@data)]
+new_gene_names <- gene_map[rownames(seurat_object)]
+rownames(seurat_object@assays$RNA@counts) <- new_gene_names
+rownames(seurat_object@assays$RNA@data) <- new_gene_names
 
 # Load Human Primary Cell Atlas Data
 hpca.se <- celldex::HumanPrimaryCellAtlasData()
