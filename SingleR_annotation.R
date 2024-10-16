@@ -28,7 +28,7 @@ check_files_exist <- function(dir) {
 }
 
 args <- commandArgs(trailingOnly = TRUE)
-if (length(args) != 3) {
+if (length(args) != 2) {
 	stop("Wrong number of arguments")
 }
 dir <- args[1]
@@ -114,6 +114,7 @@ data_matrix <- GetAssayData(seurat_object, assay = "RNA", slot = "data")
 
 # Subset and rename the data matrix
 data_matrix <- data_matrix[valid_genes, ]
+mat <- as.matrix(data_matrix)
 rownames(data_matrix) <- new_gene_names
 
 # Load Human Primary Cell Atlas Data
@@ -131,7 +132,7 @@ new_list <- list()
 for (i in seq(1, length(singleR_results$pruned.labels))) {
 	new_list[as.character(i)] <- singleR_results$pruned.labels[i]
 }
-mat <- as.matrix(data_matrix)
+
 vars <- as.data.frame(as.integer(as.factor(singleR_results$pruned.labels)))
 rownames(vars) <- rownames(singleR_results)
 colnames(vars) <- "Cluster's Number"
