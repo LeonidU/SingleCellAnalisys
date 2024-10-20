@@ -45,14 +45,10 @@ pcs_to_use <- 10
 # Run UMAP
 seurat_object <- RunUMAP(seurat_object, dims = 1:pcs_to_use)
 seurat_object <- FindNeighbors(seurat_object, dims = 1:10)
-seurat_object <- FindClusters(seurat_object, resolution = 0.5)
-all.markers <- FindAllMarkers(seurat_object)
-
-# Connect to Ensembl BioMart
-ensembl <- useEnsembl(biomart = "genes")
+#seurat_object <- FindClusters(seurat_object, resolution = 0.5)
 
 # Set dataset for pig
-ensembl_pig <- useEnsembl(biomart = "genes", dataset = "sscrofa_gene_ensembl")
+ensembl_pig <- useEnsembl(biomart = "genes", dataset = "sscrofa_gene_ensembl", host="https://may2024.archive.ensembl.org")
 
 # Get pig genes from your Seurat object
 pig_genes <- rownames(seurat_object)
@@ -61,39 +57,10 @@ pig_genes <- rownames(seurat_object)
 gene_mapping <- getBM(
   attributes = c("ensembl_gene_id", "external_gene_name",
                  "hsapiens_homolog_ensembl_gene", "hsapiens_homolog_associated_gene_name"),
-  filters = "external_gene_name",
+  filters = "ensembl_gene_id",
   values = pig_genes,
   mart = ensembl_pig
 )
-
-# Rename columns for clarity
-colnames(gene_mapping) <- c("pig_ensembl_gene_id", "pig_gene_name",
-                            "human_ensembl_gene_id", "human_gene_name")
-
-# Remove entries without human orthologs
-gene_mapping <- gene_mapping[gene_mapping$human_gene_name != "", ]
-
-# Remove duplicate mappings based on pig gene names
-gene_mapping <- gene_mapping[!duplicated(gene_mapping$pig_gene_name), ]
-
-# Connect to Ensembl BioMart
-ensembl <- useEnsembl(biomart = "genes")
-
-# Set dataset for pig
-ensembl_pig <- useEnsembl(biomart = "genes", dataset = "sscrofa_gene_ensembl")
-
-# Get pig genes from your Seurat object
-pig_genes <- rownames(seurat_object)
-
-# Retrieve pig genes with their human orthologs
-gene_mapping <- getBM(
-  attributes = c("ensembl_gene_id", "external_gene_name",
-                 "hsapiens_homolog_ensembl_gene", "hsapiens_homolog_associated_gene_name"),
-  filters = "external_gene_name",
-  values = pig_genes,
-  mart = ensembl_pig
-)
-
 # Rename columns for clarity
 colnames(gene_mapping) <- c("pig_ensembl_gene_id", "pig_gene_name",
                             "human_ensembl_gene_id", "human_gene_name")
@@ -105,19 +72,23 @@ gene_mapping <- gene_mapping[gene_mapping$human_gene_name != "", ]
 gene_mapping <- gene_mapping[!duplicated(gene_mapping$pig_gene_name), ]
 
 # Subset Seurat object to genes that have human orthologs
-common_genes <- intersect(rownames(seurat_object), gene_mapping$pig_gene_name)
+common_genes <- intersect(rownames(seurat_object), gene_mapping$pig_ensembl_gene_id)
 seurat_object <- subset(seurat_object, features = common_genes)
 
 # Create a named vector for mapping pig gene names to human gene names
-gene_map <- setNames(gene_mapping$human_gene_name, gene_mapping$pig_gene_name)
+gene_map <- setNames(gene_mapping$human_gene_name, gene_mapping$pig_ensembl_gene_id)
+expr_matrix <- GetAssayData(seurat_object, assay = "RNA", slot = "counts")
+
 
 # Rename genes in Seurat object
 new_gene_names <- gene_map[rownames(seurat_object)]
-rownames(seurat_object@assays$RNA@counts) <- new_gene_names
-rownames(seurat_object@assays$RNA@data) <- new_gene_names
+rownames(expr_matrix) <- new_gene_names
+rownames(seurat_object@assays$RNA$data) <- new_gene_names
+rownames(seurat_object@assays$RNA$count) <- new_gene_names
+
 
 # Remove any genes with NA after mapping (if any)
-valid_genes <- !is.na(rownames(seurat_object))
+valid_genes <- !is.na(rownames(expr_matrix))
 seurat_object <- subset(seurat_object, features = rownames(seurat_object)[valid_genes])
 
 # Ensure clusters are defined
@@ -127,6 +98,7 @@ seurat_object <- subset(seurat_object, features = rownames(seurat_object)[valid_
 
 # Find marker genes for each cluster
 markers <- FindAllMarkers(seurat_object, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25)
+all.markers <- FindAllMarkers(seurat_object)
 
 # View the markers
 head(markers)
@@ -135,7 +107,7 @@ head(markers)
 marker_list <- split(markers, markers$cluster)
 # Create scCATCH input object
 # scCATCH uses the normalized expression data
-expr_matrix <- as.matrix(seurat_object@assays$RNA@data)
+#expr_matrix <- as.matrix(seurat_object@assays$RNA@data)
 
 # Initialize scCATCH object
 scCATCH_obj <- createscCATCH(data = expr_matrix, cluster = seurat_object@meta.data$seurat_clusters)
