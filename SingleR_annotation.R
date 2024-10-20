@@ -61,8 +61,8 @@ ensembl <- useEnsembl(biomart = "genes")
 
 # Set datasets for pig and human
 
-ensembl_pig <- useEnsembl(biomart = "genes", dataset = "sscrofa_gene_ensembl")
-ensembl_human <- useEnsembl(biomart = "genes", dataset = "hsapiens_gene_ensembl")
+ensembl_pig <- useEnsembl(biomart = "genes", dataset = "sscrofa_gene_ensembl", host="https://may2024.archive.ensembl.org")
+ensembl_human <- useEnsembl(biomart = "genes", dataset = "hsapiens_gene_ensembl", host="https://may2024.archive.ensembl.org")
 
 # Get pig genes from your Seurat object
 pig_genes <- rownames(seurat_object)
