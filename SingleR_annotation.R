@@ -28,14 +28,15 @@ check_files_exist <- function(dir) {
 }
 
 args <- commandArgs(trailingOnly = TRUE)
-if (length(args) != 2) {
+if (length(args) != 3) {
 	stop("Wrong number of arguments")
 }
 dir <- args[1]
-output_matrix_name <- args[2]
+output_matrix_name <- args[3]
 
 check_files_exist(dir)
 
+specie <- args[2]
 
 # Standart Seurat pipeline for data processing
 z<-ReadMtx(mtx=paste0(dir, "/", "matrix.mtx"), features=paste0(dir, "/", "features.tsv"), cells=paste0(dir, "/", "barcodes.tsv"),feature.column=1)
@@ -61,7 +62,7 @@ ensembl <- useEnsembl(biomart = "genes")
 
 # Set datasets for pig and human
 
-ensembl_pig <- useEnsembl(biomart = "genes", dataset = "sscrofa_gene_ensembl", host="https://may2024.archive.ensembl.org")
+ensembl_pig <- useEnsembl(biomart = "genes", dataset = paste0(specie, "_gene_ensembl"), host="https://may2024.archive.ensembl.org")
 ensembl_human <- useEnsembl(biomart = "genes", dataset = "hsapiens_gene_ensembl", host="https://may2024.archive.ensembl.org")
 
 # Get pig genes from your Seurat object
@@ -80,22 +81,22 @@ gene_mapping <- getBM(
 )
 
 # Rename columns for clarity
-colnames(gene_mapping) <- c("pig_ensembl_gene_id", "pig_gene_name",
+colnames(gene_mapping) <- c("specie_ensembl_gene_id", "specie_gene_name",
                             "human_ensembl_gene_id", "human_gene_name")
 
 # Remove entries without human orthologs
 gene_mapping <- gene_mapping[gene_mapping$human_gene_name != "", ]
 
 # Remove duplicate mappings based on pig gene names
-gene_mapping <- gene_mapping[!duplicated(gene_mapping$pig_gene_name), ]
+gene_mapping <- gene_mapping[!duplicated(gene_mapping$specie_gene_name), ]
 
 # Subset Seurat object to genes that have human orthologs
-common_genes <- intersect(rownames(seurat_object), gene_mapping$pig_gene_name)
+common_genes <- intersect(rownames(seurat_object), gene_mapping$specie_gene_name)
 seurat_object <- subset(seurat_object, features = common_genes)
 
 # Create a named vector for mapping pig gene names to human gene names
-#gene_map <- setNames(gene_mapping$human_gene_name, gene_mapping$pig_gene_name)
-gene_map <- setNames(gene_mapping$human_gene_name, gene_mapping$pig_ensembl_gene_id)
+#gene_map <- setNames(gene_mapping$human_gene_name, gene_mapping$specie_gene_name)
+gene_map <- setNames(gene_mapping$human_gene_name, gene_mapping$specie_ensembl_gene_id)
 
 counts_matrix <- GetAssayData(seurat_object, assay = "RNA", slot = "counts")
 
