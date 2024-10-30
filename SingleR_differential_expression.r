@@ -41,7 +41,6 @@ specie <- args[2]
 
 z<-ReadMtx(mtx=paste0(dir, "/", "matrix.mtx"), features=paste0(dir, "/", "features.tsv"), cells=paste0(dir, "/", "barcodes.tsv"),feature.column=1)
 
-specie <- "sscrofa"
 ensembl <- useEnsembl(biomart = "genes")
 
 # Set datasets for pig and human
